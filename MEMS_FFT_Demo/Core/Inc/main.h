@@ -116,8 +116,8 @@ void Error_Handler(void);
 
 // defining thresholds for LED lighting
 // two threshold, to reduce flickering
-#define H_THRESHOLD 5000
-#define L_THRESHOLD 3000
+#define H_THRESHOLD 5000.00f
+#define L_THRESHOLD 3000.00f
 
 // defining what char we have to receive to start
 #define START_CHAR 's'
