@@ -106,6 +106,28 @@ void Error_Handler(void);
 #define STREAM_PERIOD_MS 50
 #define LED_PERIOD_MS 500
 
+// defining every part of magnified spectrum
+#define MAG_SLICE_SIZE 128
+
+#define FIRST_SLICE 0
+#define SECOND_SLICE 1
+#define THIRD_SLICE 2
+#define FOURTH_SLICE 3
+
+// defining thresholds for LED lighting
+// two threshold, to reduce flickering
+#define H_THRESHOLD 5000
+#define L_THRESHOLD 3000
+
+// defining what char we have to receive to start
+#define START_CHAR 's'
+
+//defining states
+#define OFF 0
+#define ON 1
+
+//string size
+#define MAX_S 150
 
 /* USER CODE END Private defines */
 
