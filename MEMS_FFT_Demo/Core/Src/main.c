@@ -154,14 +154,20 @@ int main(void)
 	MX_CRC_Init();
 	MX_PDM2PCM_Init();
 	/* USER CODE BEGIN 2 */
-
+      
+        //Configuring systick
 	if (HAL_SYSTICK_Config(SystemCoreClock / (1000U / uwTickFreq)) > 0U){	//systick configuration
 		return HAL_ERROR;
 	}
-
+        
+        //Enabling UART Receiver Not Empty interrupt
 	LL_USART_EnableIT_RXNE(USART2);
+        //Enabling UART
 	LL_USART_Enable(USART2);
+        //Enabling microphone via I2S and using DMA to transfer data
 	HAL_I2S_Receive_DMA(&hi2s2, &pdmRxBuf[0],64);
+        
+        HAL_I2S_DMAStop(&hi2s2);   //Initial state is OFF
 
 	/* USER CODE END 2 */
 
@@ -180,14 +186,14 @@ int main(void)
 		if (dataReceived == 1){
 			dataReceived = 0;
 
-			//if the received character is equal to what we expected
+			//if the received character is equal to what we expect
 			if (chRX == START_CHAR) {
 				streamActive = 1 - streamActive;	//toggling the value of streamActive
 
 				printf("Stream Toggle\r\n");
 			}
 			else
-				printf("Wrong command!\nPlease press 's'\r\n");
+				printf("Wrong command!\nPress 's' to start...\r\n");
 
 			// if streamActive == OFF
 			if (!streamActive)
@@ -253,9 +259,9 @@ int main(void)
 			//mean for part 4
 			arm_mean_f32(&signal_spectrum[(MAG_SLICE_SIZE * 3) - 1], MAG_SLICE_SIZE, &mean[FOURTH_SLICE]);
 
-			// now we have the means for every slice of the magnified spectrum in the vector mean[]
+			// now we have the means for every slice of the magnified spectrum in the array mean[]
 
-			// data are ready to transmitted
+			// data are ready to be transmitted
 
 			// if streamActive == ON we can transmit via UART
 			if (streamActive){
