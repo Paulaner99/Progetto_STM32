@@ -43,24 +43,9 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
-uint8_t button_transient = 0 ;					// activate button debounce
-uint8_t receive;
 
 int16_t CCR1_Val = 50000;
-uint16_t ADC_value;
-
-uint8_t bufferRX[RX_BUFFER_SIZE];
-uint8_t bufferTX[TX_BUFFER_SIZE];
-uint8_t idX = 0;
-uint8_t idxRX = 0;
 uint8_t idxTX = 0;
-uint8_t nBytesTX = 0;
-
-uint32_t readyToSend = 0;
-extern uint8_t dataReceived;
-extern uint8_t charToSend;
-
-
 
 /* USER CODE END PV */
 
@@ -77,14 +62,13 @@ extern uint8_t charToSend;
 /* External variables --------------------------------------------------------*/
 extern DMA_HandleTypeDef hdma_spi2_rx;
 /* USER CODE BEGIN EV */
- 				// activate button debounce
 
 extern uint8_t chRX;
-extern uint8_t dataReady;
-extern uint8_t streamActive;
 extern uint8_t dataReceived;
 
-
+extern uint8_t n_to_send;
+extern char to_send[];
+extern uint8_t streamActive;
 
 /* USER CODE END EV */
 
@@ -210,13 +194,19 @@ void PendSV_Handler(void)
   */
 void SysTick_Handler(void)
 {
-  /* USER CODE BEGIN SysTick_IRQn 0 */
+	/* USER CODE BEGIN SysTick_IRQn 0 */
+	uint16_t n=0;
+	/* USER CODE END SysTick_IRQn 0 */
+	HAL_IncTick();
+	/* USER CODE BEGIN SysTick_IRQn 1 */
 
-  /* USER CODE END SysTick_IRQn 0 */
-  HAL_IncTick();
-  /* USER CODE BEGIN SysTick_IRQn 1 */
+	// this cycle toggle RED_LED every 1 sec when OFF
+	if(n++>1000 && !streamActive){
+		n=0;
+		LL_GPIO_TogglePin(GPIOD,LL_GPIO_PIN_14);
+	}
 
-  /* USER CODE END SysTick_IRQn 1 */
+	/* USER CODE END SysTick_IRQn 1 */
 }
 
 /******************************************************************************/
@@ -246,16 +236,29 @@ void DMA1_Stream3_IRQHandler(void)
 void USART2_IRQHandler(void)
 {
   /* USER CODE BEGIN USART2_IRQn 0 */
-	/* RX interrupt */
 
+	/* RX interrupt */
 	if (LL_USART_IsActiveFlag_RXNE(USART2) != RESET)
 	{
-		chRX = LL_USART_ReceiveData8(USART2);
+		chRX = LL_USART_ReceiveData8(USART2); //char to start
 		dataReceived = 1;
-
 	}
 
-
+	/* TX Data Register Empty interrupt */
+	if(LL_USART_IsEnabledIT_TC(USART2) != RESET){
+		/* We continue to transmit until we have sent all the data */
+		while(idxTX < n_to_send){
+			/* Wait the precedent transmission to be completed */
+			if(LL_USART_IsActiveFlag_TC(USART2) != RESET){
+				/* Send the current Byte */
+				LL_USART_TransmitData8(USART2,(uint8_t)to_send[idxTX]);
+				idxTX++;
+			}
+		}
+		idxTX=0; n_to_send=0;
+		/* All bytes sent, disable TX interrupt */
+		LL_USART_DisableIT_TC(USART2);
+	}
 
   /* USER CODE END USART2_IRQn 0 */
   /* USER CODE BEGIN USART2_IRQn 1 */
