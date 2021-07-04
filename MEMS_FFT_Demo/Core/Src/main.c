@@ -166,9 +166,7 @@ int main(void)
 	LL_USART_Enable(USART2);
         //Enabling microphone via I2S and using DMA to transfer data
 	HAL_I2S_Receive_DMA(&hi2s2, &pdmRxBuf[0],64);
-        
-        HAL_I2S_DMAStop(&hi2s2);   //Initial state is OFF
-
+	
 	/* USER CODE END 2 */
 
 	/* Infinite loop */
@@ -195,16 +193,6 @@ int main(void)
 			else
 				printf("Wrong command!\nPress 's' to start...\r\n");
 
-			// if streamActive == OFF
-			if (!streamActive)
-				HAL_I2S_DMAStop(&hi2s2);	//suspending transmission from microphone
-
-			//if streamActive == ON
-			if (streamActive){
-				LL_GPIO_ResetOutputPin(GPIOD, LL_GPIO_PIN_14);
-
-				HAL_I2S_DMAResume(&hi2s2); 	//resuming transmission from microphone
-			}
 		}
 
 		switch (rxstate)
@@ -271,35 +259,36 @@ int main(void)
 				n_to_send=(uint8_t)strlen(to_send);
 
 				LL_USART_EnableIT_TC(USART2); //enableTX interrupt
+
+				// BLUE_LED ON if mean[FIRST_SLICE] higher than HIGH THRESHOLD
+				if(mean[FIRST_SLICE] > H_THRESHOLD)
+					LL_GPIO_SetOutputPin(GPIOD,LL_GPIO_PIN_15);
+				// BLUE_LED OFF if mean[FIRST_SLICE] lower than LOW THRESHOLD
+				else if(mean[FIRST_SLICE] < L_THRESHOLD)
+					LL_GPIO_ResetOutputPin(GPIOD,LL_GPIO_PIN_15);
+
+				// GREEN_LED ON if mean[SECOND_SLICE] higher than HIGH THRESHOLD
+				if(mean[SECOND_SLICE] > H_THRESHOLD)
+					LL_GPIO_SetOutputPin(GPIOD,LL_GPIO_PIN_12);
+				// GREEN_LED OFF if mean[SECOND_SLICE] lower than LOW THRESHOLD
+				else if(mean[SECOND_SLICE] < L_THRESHOLD)
+					LL_GPIO_ResetOutputPin(GPIOD,LL_GPIO_PIN_12);
+
+				// ORANGE_LED ON if mean[THIRD_SLICE] higher than HIGH THRESHOLD
+				if(mean[THIRD_SLICE] > H_THRESHOLD)
+					LL_GPIO_SetOutputPin(GPIOD,LL_GPIO_PIN_13);
+				// ORANGE_LED OFF if mean[THIRD_SLICE] lower than LOW THRESHOLD
+				else if(mean[THIRD_SLICE] < L_THRESHOLD)
+					LL_GPIO_ResetOutputPin(GPIOD,LL_GPIO_PIN_13);
+
+				// RED_LED ON if mean[FOURTH_SLICE] higher than HIGH THRESHOLD
+				if(mean[FOURTH_SLICE] > H_THRESHOLD)
+					LL_GPIO_SetOutputPin(GPIOD,LL_GPIO_PIN_14);
+				// RED_LED OFF if mean[FOURTH_SLICE] lower than LOW THRESHOLD
+				else if(mean[FOURTH_SLICE] < L_THRESHOLD)
+					LL_GPIO_ResetOutputPin(GPIOD,LL_GPIO_PIN_14);
+			
 			}
-
-			// BLUE_LED ON if mean[FIRST_SLICE] higher than HIGH THRESHOLD
-			if(mean[FIRST_SLICE] > H_THRESHOLD)
-				LL_GPIO_SetOutputPin(GPIOD,LL_GPIO_PIN_15);
-			// BLUE_LED OFF if mean[FIRST_SLICE] lower than LOW THRESHOLD
-			else if(mean[FIRST_SLICE] < L_THRESHOLD)
-				LL_GPIO_ResetOutputPin(GPIOD,LL_GPIO_PIN_15);
-
-			// GREEN_LED ON if mean[SECOND_SLICE] higher than HIGH THRESHOLD
-			if(mean[SECOND_SLICE] > H_THRESHOLD)
-				LL_GPIO_SetOutputPin(GPIOD,LL_GPIO_PIN_12);
-			// GREEN_LED OFF if mean[SECOND_SLICE] lower than LOW THRESHOLD
-			else if(mean[SECOND_SLICE] < L_THRESHOLD)
-				LL_GPIO_ResetOutputPin(GPIOD,LL_GPIO_PIN_12);
-
-			// ORANGE_LED ON if mean[THIRD_SLICE] higher than HIGH THRESHOLD
-			if(mean[THIRD_SLICE] > H_THRESHOLD)
-				LL_GPIO_SetOutputPin(GPIOD,LL_GPIO_PIN_13);
-			// ORANGE_LED OFF if mean[THIRD_SLICE] lower than LOW THRESHOLD
-			else if(mean[THIRD_SLICE] < L_THRESHOLD)
-				LL_GPIO_ResetOutputPin(GPIOD,LL_GPIO_PIN_13);
-
-			// RED_LED ON if mean[FOURTH_SLICE] higher than HIGH THRESHOLD
-			if(mean[FOURTH_SLICE] > H_THRESHOLD)
-				LL_GPIO_SetOutputPin(GPIOD,LL_GPIO_PIN_14);
-			// RED_LED OFF if mean[FOURTH_SLICE] lower than LOW THRESHOLD
-			else if(mean[FOURTH_SLICE] < L_THRESHOLD)
-				LL_GPIO_ResetOutputPin(GPIOD,LL_GPIO_PIN_14);
 
 #ifdef STREAM_RAW_DATA
 			for(int inx_data = 0; inx_data<FFT_SIZE; inx_data++)
