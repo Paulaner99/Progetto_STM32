@@ -192,6 +192,14 @@ int main(void)
 			}
 			else
 				printf("Wrong command!\nPress 's' to start...\r\n");
+			
+			if(!streamActive){
+				//Reset active LEDs
+				LL_GPIO_ResetOutputPin(GPIOD,LL_GPIO_PIN_15);
+				LL_GPIO_ResetOutputPin(GPIOD,LL_GPIO_PIN_12);
+				LL_GPIO_ResetOutputPin(GPIOD,LL_GPIO_PIN_13);
+				LL_GPIO_ResetOutputPin(GPIOD,LL_GPIO_PIN_14);
+			}
 
 		}
 
