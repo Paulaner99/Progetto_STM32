@@ -16,6 +16,19 @@
  *
  ******************************************************************************
  */
+
+/* GRUPPO 28 -> TOMMASO UGOLINI; RICCARDO PAOLINI; GIULIA KODRIC'; GIACOMO PETTA.
+ *
+ * 		PROGETTO 2
+ *
+ * ACCENNO ALLE SCELTE PROGETTUALI:
+ * 		ABBIAMO DECISO DI FAR 'BLINKARE' IL LED ROSSO QUANDO LA TRASMISSIONE NON È ATTIVA.
+ * 		INOLTRE QUANDO INTERROMPIAMO LA TRASMISSIONE METTIAMO IN PAUSA IL DMA
+ * 		PER RISPARMIARE ENERGIA OLTRE AD INTERROMPERE L'ACCENSIONE DEI LED.
+ * 		ABBIAMO ANCHE PENSATO DI INTRODURRE UNA DOPPIA SOGLIA AL POSTO DELLA SOGLIA SINGOLA
+ * 		PER RIDURRE IL 'FLICKERING' DEI LED.
+ */
+
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
@@ -154,31 +167,25 @@ int main(void)
 	MX_CRC_Init();
 	MX_PDM2PCM_Init();
 	/* USER CODE BEGIN 2 */
-      
-        //Configuring systick
+
+	//Configuring systick
 	if (HAL_SYSTICK_Config(SystemCoreClock / (1000U / uwTickFreq)) > 0U){	//systick configuration
 		return HAL_ERROR;
 	}
-        
-        //Enabling UART Receiver Not Empty interrupt
+
+	//Enabling UART Receiver Not Empty interrupt
 	LL_USART_EnableIT_RXNE(USART2);
-        //Enabling UART
+	//Enabling UART
 	LL_USART_Enable(USART2);
-        //Enabling microphone via I2S and using DMA to transfer data
+	//Enabling microphone via I2S and using DMA to transfer data
 	HAL_I2S_Receive_DMA(&hi2s2, &pdmRxBuf[0],64);
-	
+	HAL_I2S_DMAPause(&hi2s2);
 	/* USER CODE END 2 */
 
 	/* Infinite loop */
 	/* USER CODE BEGIN WHILE */
 	while (1)
 	{
-		// Initializing variables
-		for(int i = 0; i < FFT_SIZE*2; i++){
-			data_col[i] = 0;
-			fft_mag_out_buf[i] = 0;
-			fft_in_buf[i] = 0;
-		}
 
 		//if i receive data from UART
 		if (dataReceived == 1){
@@ -192,111 +199,126 @@ int main(void)
 			}
 			else
 				printf("Wrong command!\nPress 's' to start...\r\n");
-			
+
 			if(!streamActive){
 				//Reset active LEDs
+				HAL_I2S_DMAPause(&hi2s2);
 				LL_GPIO_ResetOutputPin(GPIOD,LL_GPIO_PIN_15);
 				LL_GPIO_ResetOutputPin(GPIOD,LL_GPIO_PIN_12);
 				LL_GPIO_ResetOutputPin(GPIOD,LL_GPIO_PIN_13);
 				LL_GPIO_ResetOutputPin(GPIOD,LL_GPIO_PIN_14);
 			}
 
+			if(streamActive)
+				HAL_I2S_DMAResume(&hi2s2);
 		}
 
-		switch (rxstate)
-		{
-		case STATE_HALF:
-			PDM_Filter(&pdmRxBuf[0],&MidBuffer[0], &PDM1_filter_handler); 		//filtering
-			for (int i=0; i<16;i++)
-				append_data(MidBuffer[i]);	//transferring data from MidBuffer to data_col
-			rxstate = STATE_IDLE;	//setting state to idle
-			break;
-		case STATE_FULL:
-			PDM_Filter(&pdmRxBuf[64],&MidBuffer[0], &PDM1_filter_handler);	//filtering
-			for (int i=0; i<16;i++)
-				append_data(MidBuffer[i]); //transferring data from MidBuffer to data_col
-			rxstate = STATE_IDLE;	//setting state to idle
-			break;
-		case STATE_IDLE:
-			//do some task...
-			break;
-		}
 
-		if(counter_samples >= FFT_SIZE){
-			/* Copy data to preserve buffer content */
-			for(int inx_data = 0; inx_data<FFT_SIZE; inx_data++)
-				fft_in_buf[inx_data] = (float)data_col[inx_data];
+		if(streamActive){
 
-			/* Reset index of the buffer accumulating PCM samples */
-			counter_samples = 0;
+			// Initializing variables
+			for(int i = 0; i < FFT_SIZE*2; i++){
+				data_col[i] = 0;
+				fft_mag_out_buf[i] = 0;
+				fft_in_buf[i] = 0;
 
-			///// FFT
-			arm_cfft_f32(&arm_cfft_sR_f32_len1024, fft_in_buf, ifftFlag, doBitReverse);
+				switch (rxstate)
+				{
+				case STATE_HALF:
+					PDM_Filter(&pdmRxBuf[0],&MidBuffer[0], &PDM1_filter_handler); 		//filtering
+					for (int i=0; i<16;i++)
+						append_data(MidBuffer[i]);	//transferring data from MidBuffer to data_col
+					rxstate = STATE_IDLE;	//setting state to idle
+					break;
+				case STATE_FULL:
+					PDM_Filter(&pdmRxBuf[64],&MidBuffer[0], &PDM1_filter_handler);	//filtering
+					for (int i=0; i<16;i++)
+						append_data(MidBuffer[i]); //transferring data from MidBuffer to data_col
+					rxstate = STATE_IDLE;	//setting state to idle
+					break;
+				case STATE_IDLE:
+					//do some task...
+					break;
+				}
 
-			///// MAGNITUDE
-			arm_cmplx_mag_f32(fft_in_buf, fft_mag_out_buf, FFT_SIZE);
+				if(counter_samples >= FFT_SIZE){
+					/* Copy data to preserve buffer content */
+					for(int inx_data = 0; inx_data<FFT_SIZE; inx_data++)
+						fft_in_buf[inx_data] = (float)data_col[inx_data];
 
-			/* Just keep the useful part of the spectrum (FFT points/2) */
-			for(int inx_data = 0; inx_data<FFT_SIZE/2; inx_data++)
-				signal_spectrum[inx_data] = fft_mag_out_buf[inx_data];
+					/* Reset index of the buffer accumulating PCM samples */
+					counter_samples = 0;
 
-			/* Do your processing here */
+					///// FFT
+					arm_cfft_f32(&arm_cfft_sR_f32_len1024, fft_in_buf, ifftFlag, doBitReverse);
 
-			// data are already in signal_spectrum of size 512 float
+					///// MAGNITUDE
+					arm_cmplx_mag_f32(fft_in_buf, fft_mag_out_buf, FFT_SIZE);
 
-			// dividing it into 4 parts means: 128 values for each part
+					/* Just keep the useful part of the spectrum (FFT points/2) */
+					for(int inx_data = 0; inx_data<FFT_SIZE/2; inx_data++)
+						signal_spectrum[inx_data] = fft_mag_out_buf[inx_data];
 
-			//mean for part 1
-			arm_mean_f32(&signal_spectrum[0], MAG_SLICE_SIZE, &mean[FIRST_SLICE]);
-			//mean for part 2
-			arm_mean_f32(&signal_spectrum[MAG_SLICE_SIZE - 1], MAG_SLICE_SIZE, &mean[SECOND_SLICE]);
-			//mean for part 3
-			arm_mean_f32(&signal_spectrum[(MAG_SLICE_SIZE * 2) - 1], MAG_SLICE_SIZE, &mean[THIRD_SLICE]);
-			//mean for part 4
-			arm_mean_f32(&signal_spectrum[(MAG_SLICE_SIZE * 3) - 1], MAG_SLICE_SIZE, &mean[FOURTH_SLICE]);
+					/* Do your processing here */
 
-			// now we have the means for every slice of the magnified spectrum in the array mean[]
+					// data are already in signal_spectrum of size 512 float
 
-			// data are ready to be transmitted
+					// dividing it into 4 parts means: 128 values for each part
 
-			// if streamActive == ON we can transmit via UART
-			if (streamActive){
-				//using this function to put in the string to_send the message to send via UART
-				sprintf(to_send,"MEAN_1:%2.2f\tMEAN_2:%2.2f\tMEAN_3:%2.2f\tMEAN_4;%2.2f\r\n", mean[FIRST_SLICE], mean[SECOND_SLICE], mean[THIRD_SLICE], mean[FOURTH_SLICE]);
-				//calculating length of the string to send via UART
-				n_to_send=(uint8_t)strlen(to_send);
+					//mean for part 1
+					arm_mean_f32(&signal_spectrum[0], MAG_SLICE_SIZE, &mean[FIRST_SLICE]);
+					//mean for part 2
+					arm_mean_f32(&signal_spectrum[MAG_SLICE_SIZE - 1], MAG_SLICE_SIZE, &mean[SECOND_SLICE]);
+					//mean for part 3
+					arm_mean_f32(&signal_spectrum[(MAG_SLICE_SIZE * 2) - 1], MAG_SLICE_SIZE, &mean[THIRD_SLICE]);
+					//mean for part 4
+					arm_mean_f32(&signal_spectrum[(MAG_SLICE_SIZE * 3) - 1], MAG_SLICE_SIZE, &mean[FOURTH_SLICE]);
 
-				LL_USART_EnableIT_TC(USART2); //enableTX interrupt
+					// now we have the means for every slice of the magnified spectrum in the array mean[]
 
-				// BLUE_LED ON if mean[FIRST_SLICE] higher than HIGH THRESHOLD
-				if(mean[FIRST_SLICE] > H_THRESHOLD)
-					LL_GPIO_SetOutputPin(GPIOD,LL_GPIO_PIN_15);
-				// BLUE_LED OFF if mean[FIRST_SLICE] lower than LOW THRESHOLD
-				else if(mean[FIRST_SLICE] < L_THRESHOLD)
-					LL_GPIO_ResetOutputPin(GPIOD,LL_GPIO_PIN_15);
+					// data are ready to be transmitted
 
-				// GREEN_LED ON if mean[SECOND_SLICE] higher than HIGH THRESHOLD
-				if(mean[SECOND_SLICE] > H_THRESHOLD)
-					LL_GPIO_SetOutputPin(GPIOD,LL_GPIO_PIN_12);
-				// GREEN_LED OFF if mean[SECOND_SLICE] lower than LOW THRESHOLD
-				else if(mean[SECOND_SLICE] < L_THRESHOLD)
-					LL_GPIO_ResetOutputPin(GPIOD,LL_GPIO_PIN_12);
+					// transmit via UART
 
-				// ORANGE_LED ON if mean[THIRD_SLICE] higher than HIGH THRESHOLD
-				if(mean[THIRD_SLICE] > H_THRESHOLD)
-					LL_GPIO_SetOutputPin(GPIOD,LL_GPIO_PIN_13);
-				// ORANGE_LED OFF if mean[THIRD_SLICE] lower than LOW THRESHOLD
-				else if(mean[THIRD_SLICE] < L_THRESHOLD)
-					LL_GPIO_ResetOutputPin(GPIOD,LL_GPIO_PIN_13);
+					//using this function to put in the string to_send the message to send via UART
+					sprintf(to_send,"MEAN_1:%2.2f\tMEAN_2:%2.2f\tMEAN_3:%2.2f\tMEAN_4:%2.2f\r\n", mean[FIRST_SLICE], mean[SECOND_SLICE], mean[THIRD_SLICE], mean[FOURTH_SLICE]);
+					//calculating length of the string to send via UART
+					n_to_send=(uint8_t)strlen(to_send);
 
-				// RED_LED ON if mean[FOURTH_SLICE] higher than HIGH THRESHOLD
-				if(mean[FOURTH_SLICE] > H_THRESHOLD)
-					LL_GPIO_SetOutputPin(GPIOD,LL_GPIO_PIN_14);
-				// RED_LED OFF if mean[FOURTH_SLICE] lower than LOW THRESHOLD
-				else if(mean[FOURTH_SLICE] < L_THRESHOLD)
-					LL_GPIO_ResetOutputPin(GPIOD,LL_GPIO_PIN_14);
-			
+					LL_USART_EnableIT_TC(USART2); //enableTX interrupt
+
+					// BLUE_LED ON if mean[FIRST_SLICE] higher than HIGH THRESHOLD
+					if(mean[FIRST_SLICE] > H_THRESHOLD)
+						LL_GPIO_SetOutputPin(GPIOD,LL_GPIO_PIN_15);
+					// BLUE_LED OFF if mean[FIRST_SLICE] lower than LOW THRESHOLD
+					else if(mean[FIRST_SLICE] < L_THRESHOLD)
+						LL_GPIO_ResetOutputPin(GPIOD,LL_GPIO_PIN_15);
+
+					// GREEN_LED ON if mean[SECOND_SLICE] higher than HIGH THRESHOLD
+					if(mean[SECOND_SLICE] > H_THRESHOLD)
+						LL_GPIO_SetOutputPin(GPIOD,LL_GPIO_PIN_12);
+					// GREEN_LED OFF if mean[SECOND_SLICE] lower than LOW THRESHOLD
+					else if(mean[SECOND_SLICE] < L_THRESHOLD)
+						LL_GPIO_ResetOutputPin(GPIOD,LL_GPIO_PIN_12);
+
+					// ORANGE_LED ON if mean[THIRD_SLICE] higher than HIGH THRESHOLD
+					if(mean[THIRD_SLICE] > H_THRESHOLD)
+						LL_GPIO_SetOutputPin(GPIOD,LL_GPIO_PIN_13);
+					// ORANGE_LED OFF if mean[THIRD_SLICE] lower than LOW THRESHOLD
+					else if(mean[THIRD_SLICE] < L_THRESHOLD)
+						LL_GPIO_ResetOutputPin(GPIOD,LL_GPIO_PIN_13);
+
+					// RED_LED ON if mean[FOURTH_SLICE] higher than HIGH THRESHOLD
+					if(mean[FOURTH_SLICE] > H_THRESHOLD)
+						LL_GPIO_SetOutputPin(GPIOD,LL_GPIO_PIN_14);
+					// RED_LED OFF if mean[FOURTH_SLICE] lower than LOW THRESHOLD
+					else if(mean[FOURTH_SLICE] < L_THRESHOLD)
+						LL_GPIO_ResetOutputPin(GPIOD,LL_GPIO_PIN_14);
+
+				}
 			}
+
+
 
 #ifdef STREAM_RAW_DATA
 			for(int inx_data = 0; inx_data<FFT_SIZE; inx_data++)
