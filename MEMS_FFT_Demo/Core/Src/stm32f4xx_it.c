@@ -46,7 +46,7 @@
 
 int16_t CCR1_Val = 50000;
 uint8_t idxTX = 0;
-
+uint16_t n=0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -195,7 +195,7 @@ void PendSV_Handler(void)
 void SysTick_Handler(void)
 {
 	/* USER CODE BEGIN SysTick_IRQn 0 */
-	uint16_t n=0;
+
 	/* USER CODE END SysTick_IRQn 0 */
 	HAL_IncTick();
 	/* USER CODE BEGIN SysTick_IRQn 1 */
