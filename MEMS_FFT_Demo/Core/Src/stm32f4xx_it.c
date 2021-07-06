@@ -201,7 +201,7 @@ void SysTick_Handler(void)
 	/* USER CODE BEGIN SysTick_IRQn 1 */
 
 	// this cycle toggle RED_LED every 1 sec when OFF
-	if(n++>1000 && !streamActive){
+	if(n++>750 && !streamActive){
 		n=0;
 		LL_GPIO_TogglePin(GPIOD,LL_GPIO_PIN_14);
 	}
